@@ -1,0 +1,16 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+
+# Copy both projects — GrpcPOCApp references GrpcServer's proto files
+COPY grpcPOC/GrpcServer/ ./GrpcServer/
+COPY grpcPOC/GrpcPOCApp/ ./GrpcPOCApp/
+
+WORKDIR /src/GrpcPOCApp
+RUN dotnet publish -c Release -o /app/publish
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0
+WORKDIR /app
+COPY --from=build /app/publish .
+EXPOSE 5062
+ENV ASPNETCORE_URLS=http://+:5062
+ENTRYPOINT ["dotnet", "GrpcPOCApp.dll"]

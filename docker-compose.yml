@@ -1,0 +1,27 @@
+services:
+
+  grpc-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.grpc-server
+    container_name: grpc-server
+
+  grpc-poc-app:
+    build:
+      context: .
+      dockerfile: Dockerfile.grpc-poc-app
+    container_name: grpc-poc-app
+    environment:
+      - GrpcServer__Address=http://grpc-server:5001
+    depends_on:
+      - grpc-server
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: grpc-poc-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - grpc-poc-app

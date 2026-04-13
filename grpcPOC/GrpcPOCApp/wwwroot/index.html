@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>gRPC POC – 4 Communication Modes</title>
+  <style>
+    /* ── Reset & base ───────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      min-height: 100vh;
+    }
+
+    /* ── Layout ─────────────────────────────────────────────────────── */
+    header {
+      background: linear-gradient(135deg, #1e40af 0%, #7c3aed 100%);
+      padding: 24px 32px;
+      text-align: center;
+    }
+    header h1 { font-size: 1.8rem; font-weight: 700; letter-spacing: -0.5px; }
+    header p  { color: #bfdbfe; margin-top: 4px; font-size: 0.95rem; }
+
+    .container { max-width: 900px; margin: 0 auto; padding: 24px 16px; }
+
+    /* ── Mode selector tabs ─────────────────────────────────────────── */
+    .tabs {
+      display: flex; gap: 8px; flex-wrap: wrap;
+      margin-bottom: 24px;
+    }
+    .tab-btn {
+      flex: 1 1 auto;
+      padding: 10px 16px;
+      border: 2px solid #334155;
+      border-radius: 10px;
+      background: #1e293b;
+      color: #94a3b8;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 600;
+      transition: all .2s;
+      text-align: center;
+    }
+    .tab-btn:hover { border-color: #6366f1; color: #e2e8f0; }
+    .tab-btn.active {
+      border-color: #6366f1;
+      background: #312e81;
+      color: #fff;
+    }
+    .tab-btn .mode-badge {
+      display: block;
+      font-size: 0.7rem;
+      color: #818cf8;
+      margin-bottom: 2px;
+      font-weight: 400;
+    }
+
+    /* ── Panel ──────────────────────────────────────────────────────── */
+    .panel {
+      display: none;
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 16px;
+      padding: 24px;
+    }
+    .panel.active { display: block; }
+    .panel h2 { font-size: 1.2rem; font-weight: 700; margin-bottom: 4px; }
+    .panel .desc {
+      color: #94a3b8; font-size: 0.85rem;
+      margin-bottom: 20px; line-height: 1.5;
+    }
+    .panel .desc code {
+      background: #0f172a; padding: 1px 6px;
+      border-radius: 4px; font-size: 0.8rem; color: #a78bfa;
+    }
+
+    /* ── Form elements ──────────────────────────────────────────────── */
+    .form-row { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+    input[type=text], input[type=number] {
+      flex: 1 1 160px;
+      padding: 10px 14px;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      color: #e2e8f0;
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color .2s;
+    }
+    input[type=text]:focus, input[type=number]:focus { border-color: #6366f1; }
+    input[type=number] { max-width: 120px; }
+
+    button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      background: #4f46e5;
+      color: #fff;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .2s;
+      white-space: nowrap;
+    }
+    button:hover  { background: #4338ca; }
+    button:active { background: #3730a3; }
+    button.danger { background: #dc2626; }
+    button.danger:hover { background: #b91c1c; }
+    button.secondary {
+      background: #1e3a5f; color: #93c5fd;
+      border: 1px solid #1d4ed8;
+    }
+    button.secondary:hover { background: #1e40af; }
+    button:disabled { background: #334155; color: #64748b; cursor: not-allowed; }
+
+    /* ── Output / log panes ─────────────────────────────────────────── */
+    .log-box {
+      background: #0f172a;
+      border: 1px solid #1e3a5f;
+      border-radius: 10px;
+      padding: 14px;
+      margin-top: 16px;
+      min-height: 120px;
+      max-height: 340px;
+      overflow-y: auto;
+      font-family: 'Cascadia Code', 'Fira Code', monospace;
+      font-size: 0.82rem;
+      line-height: 1.6;
+    }
+    .log-box .entry { margin-bottom: 4px; }
+    .log-box .entry.success { color: #34d399; }
+    .log-box .entry.error   { color: #f87171; }
+    .log-box .entry.info    { color: #93c5fd; }
+    .log-box .entry.msg     { color: #e2e8f0; }
+    .log-box .entry .ts     { color: #475569; margin-right: 6px; }
+    .log-box .entry .sender { color: #a78bfa; font-weight: 600; }
+
+    /* ── Chat box (Mode 4) ──────────────────────────────────────────── */
+    .chat-bubble {
+      margin-bottom: 8px;
+      padding: 8px 14px;
+      border-radius: 12px;
+      max-width: 80%;
+    }
+    .chat-bubble.me  { background: #312e81; margin-left: auto; text-align: right; }
+    .chat-bubble.other { background: #164e63; }
+    .chat-bubble .sender { font-size: 0.75rem; color: #94a3b8; margin-bottom: 2px; }
+    .chat-bubble .text   { font-size: 0.9rem; }
+
+    /* ── Queue list (Mode 3) ────────────────────────────────────────── */
+    .queue-list {
+      background: #0f172a;
+      border: 1px solid #1e3a5f;
+      border-radius: 10px;
+      padding: 10px 14px;
+      margin: 12px 0;
+      min-height: 60px;
+      max-height: 180px;
+      overflow-y: auto;
+      font-size: 0.82rem;
+    }
+    .queue-item {
+      display: flex; justify-content: space-between;
+      padding: 4px 0; border-bottom: 1px solid #1e293b;
+      color: #cbd5e1;
+    }
+    .queue-item:last-child { border-bottom: none; }
+
+    /* ── Status indicator ───────────────────────────────────────────── */
+    .status-bar {
+      display: flex; align-items: center; gap: 8px;
+      margin-top: 12px; font-size: 0.8rem; color: #64748b;
+    }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #334155; }
+    .dot.green  { background: #22c55e; box-shadow: 0 0 6px #22c55e; }
+    .dot.red    { background: #ef4444; }
+    .dot.yellow { background: #eab308; animation: pulse 1s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+    /* ── Misc ───────────────────────────────────────────────────────── */
+    .flex-end { display: flex; justify-content: flex-end; margin-top: 8px; }
+    .note {
+      font-size: 0.75rem; color: #475569;
+      margin-top: 8px; line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>gRPC POC &mdash; Chat Demo</h1>
+  <p>Demonstrating all four gRPC communication patterns via a REST bridge</p>
+</header>
+
+<div class="container">
+
+  <!-- ── Tab buttons ──────────────────────────────────────────────────── -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="showTab('unary')">
+      <span class="mode-badge">MODE 1</span>Unary RPC
+    </button>
+    <button class="tab-btn" onclick="showTab('server-stream')">
+      <span class="mode-badge">MODE 2</span>Server Streaming
+    </button>
+    <button class="tab-btn" onclick="showTab('client-stream')">
+      <span class="mode-badge">MODE 3</span>Client Streaming
+    </button>
+    <button class="tab-btn" onclick="showTab('bidi')">
+      <span class="mode-badge">MODE 4</span>Bidirectional
+    </button>
+  </div>
+
+  <!-- ─────────────────────────────────────────────────────────────────── -->
+  <!-- MODE 1: UNARY                                                       -->
+  <!-- ─────────────────────────────────────────────────────────────────── -->
+  <div id="tab-unary" class="panel active">
+    <h2>Mode 1 &mdash; Unary RPC</h2>
+    <p class="desc">
+      Client sends <strong>one</strong> request and waits for <strong>one</strong> response.<br>
+      <code>rpc SendMessage (MessageRequest) returns (MessageResponse)</code><br>
+      REST bridge: <code>POST /api/chat/send</code>
+    </p>
+
+    <div class="form-row">
+      <input type="text" id="u-sender" placeholder="Your name" value="Alice" />
+      <input type="text" id="u-content" placeholder="Type a message…" />
+      <button onclick="unarySend()">Send</button>
+    </div>
+
+    <div id="u-log" class="log-box"><span class="entry info">Ready — fill in the form and click Send.</span></div>
+    <p class="note">Each click makes a single round-trip: request → server stores message → response with message ID.</p>
+  </div>
+
+  <!-- ─────────────────────────────────────────────────────────────────── -->
+  <!-- MODE 2: SERVER STREAMING                                            -->
+  <!-- ─────────────────────────────────────────────────────────────────── -->
+  <div id="tab-server-stream" class="panel">
+    <h2>Mode 2 &mdash; Server Streaming RPC</h2>
+    <p class="desc">
+      Client sends <strong>one</strong> request; the server <strong>streams</strong> multiple messages back one-by-one.<br>
+      <code>rpc GetChatHistory (HistoryRequest) returns (stream MessageRequest)</code><br>
+      REST bridge: <code>GET /api/chat/history</code> (SSE)
+    </p>
+
+    <div class="form-row">
+      <input type="number" id="ss-limit"  value="10"  min="1" max="100" placeholder="limit" />
+      <input type="number" id="ss-offset" value="0"   min="0"           placeholder="offset" />
+      <button onclick="serverStream()">Fetch History (stream)</button>
+    </div>
+
+    <div id="ss-log" class="log-box"><span class="entry info">Ready — click "Fetch History" to watch messages stream in one-by-one.</span></div>
+    <p class="note">Messages arrive with a small delay between each, just like the gRPC server-streaming mode sends them one at a time over a single HTTP/2 connection.</p>
+  </div>
+
+  <!-- ─────────────────────────────────────────────────────────────────── -->
+  <!-- MODE 3: CLIENT STREAMING                                            -->
+  <!-- ─────────────────────────────────────────────────────────────────── -->
+  <div id="tab-client-stream" class="panel">
+    <h2>Mode 3 &mdash; Client Streaming RPC</h2>
+    <p class="desc">
+      Client <strong>streams</strong> multiple messages; server sends <strong>one</strong> summary response when done.<br>
+      <code>rpc BulkUploadMessages (stream MessageRequest) returns (UploadResponse)</code><br>
+      REST bridge: <code>POST /api/chat/bulk-upload</code>
+    </p>
+
+    <div class="form-row">
+      <input type="text" id="cs-sender"  placeholder="Your name"  value="Bob" />
+      <input type="text" id="cs-content" placeholder="Message to queue…" />
+      <button class="secondary" onclick="csAddToQueue()">+ Add to Queue</button>
+    </div>
+
+    <div id="cs-queue" class="queue-list"><em style="color:#475569">Queue is empty — add messages above.</em></div>
+
+    <div class="form-row" style="margin-top:4px">
+      <button onclick="csBulkUpload()" id="cs-upload-btn" disabled>Upload All</button>
+      <button class="danger" onclick="csClearQueue()">Clear Queue</button>
+    </div>
+
+    <div id="cs-log" class="log-box"><span class="entry info">Ready — build a queue then click "Upload All" to send all messages in one streaming call.</span></div>
+    <p class="note">All queued messages are sent as a single "stream" to the server, which returns one aggregate response after processing every message.</p>
+  </div>
+
+  <!-- ─────────────────────────────────────────────────────────────────── -->
+  <!-- MODE 4: BIDIRECTIONAL STREAMING                                     -->
+  <!-- ─────────────────────────────────────────────────────────────────── -->
+  <div id="tab-bidi" class="panel">
+    <h2>Mode 4 &mdash; Bidirectional Streaming RPC</h2>
+    <p class="desc">
+      Client and server <strong>both stream simultaneously</strong> — messages flow in both directions at the same time.<br>
+      <code>rpc LiveChat (stream MessageRequest) returns (stream MessageResponse)</code><br>
+      REST bridge: SSE (<code>GET /api/chat/live-stream</code>) + <code>POST /api/chat/live-send</code>
+    </p>
+
+    <div class="status-bar">
+      <span class="dot" id="bidi-dot"></span>
+      <span id="bidi-status">Disconnected — click Connect to open the live stream.</span>
+    </div>
+
+    <div id="bidi-chat" class="log-box" style="min-height:200px; margin-top:12px"></div>
+
+    <div class="form-row" style="margin-top:12px">
+      <input type="text" id="bidi-name"    placeholder="Your name"   value="Charlie" />
+      <input type="text" id="bidi-content" placeholder="Live message…" onkeydown="if(event.key==='Enter') bidiSend()" />
+      <button onclick="bidiConnect()" id="bidi-connect-btn">Connect</button>
+      <button onclick="bidiSend()"    id="bidi-send-btn"    disabled>Send</button>
+      <button onclick="bidiDisconnect()" class="danger" id="bidi-disc-btn" disabled>Disconnect</button>
+    </div>
+    <p class="note">Open this tab in two browser windows simultaneously to see bidirectional, real-time communication between multiple clients.</p>
+  </div>
+
+</div><!-- /container -->
+
+<script src="app.js"></script>
+</body>
+</html>

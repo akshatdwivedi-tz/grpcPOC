@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="GrpcPOCApp/GrpcPOCApp.csproj" />
+  <Project Path="GrpcServer/GrpcServer.csproj" />
+</Solution>

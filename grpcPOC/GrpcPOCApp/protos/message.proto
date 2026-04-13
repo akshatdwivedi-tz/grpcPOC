@@ -1,0 +1,65 @@
+syntax = "proto3";
+
+option csharp_namespace = "GrpcPOCApp.Protos";
+
+package chatservice;
+
+// ============================================
+// CHAT SERVICE DEFINITION - ALL 4 MODES
+// ============================================
+
+service ChatService {
+  
+  // MODE 1: UNARY RPC
+  // Client sends 1 request → Server sends 1 response
+  // Use case: Send a single message and get confirmation
+  rpc SendMessage (MessageRequest) returns (MessageResponse);
+  
+  // MODE 2: SERVER STREAMING
+  // Client sends 1 request → Server streams multiple responses
+  // Use case: Get chat history (server sends messages one by one)
+  rpc GetChatHistory (HistoryRequest) returns (stream MessageRequest);
+  
+  // MODE 3: CLIENT STREAMING
+  // Client streams multiple requests → Server sends 1 response
+  // Use case: Bulk upload messages at once
+  rpc BulkUploadMessages (stream MessageRequest) returns (UploadResponse);
+  
+  // MODE 4: BIDIRECTIONAL STREAMING
+  // Client streams requests ↔ Server streams responses (simultaneously)
+  // Use case: Live real-time chat
+  rpc LiveChat (stream MessageRequest) returns (stream MessageResponse);
+}
+
+
+// ============================================
+// MESSAGE DEFINITIONS
+// ============================================
+
+// Core message structure for sending chat messages
+message MessageRequest {
+  string sender_id = 1;      // Unique identifier of the sender (e.g., "user123")
+  string sender_name = 2;    // Display name of the sender (e.g., "Alice")
+  string content = 3;        // The actual message content
+  int64 timestamp = 4;       // Unix timestamp in seconds
+}
+
+// Response for successful message operations
+message MessageResponse {
+  bool success = 1;          // Whether operation succeeded
+  string message = 2;        // Response message (e.g., "Message saved")
+  int32 message_id = 3;      // ID of the saved message
+}
+
+// Request for retrieving chat history
+message HistoryRequest {
+  int32 limit = 1;           // How many messages to retrieve (e.g., 10)
+  int32 offset = 2;          // Skip how many messages (for pagination, e.g., 0)
+}
+
+// Response for bulk upload operations
+message UploadResponse {
+  bool success = 1;          // Whether upload succeeded
+  int32 messages_uploaded = 2;  // Total number of messages saved
+  string message = 3;        // Status message (e.g., "5 messages uploaded")
+}

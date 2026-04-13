@@ -1,0 +1,29 @@
+# Node / Frontend
+node_modules/
+dist/
+.cache/
+.vite/
+
+# .NET
+**/bin/
+**/obj/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userprefs
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
